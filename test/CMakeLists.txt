@@ -7,6 +7,7 @@ configure_lit_site_cfg(
 
 set(CIRCT_MOCKTURTLE_TEST_DEPENDS
   circt-mockturtle-opt
+  circt-mockturtle-translate
 )
 
 if(CIRCT_MOCKTURTLE_HAS_PLUGIN)

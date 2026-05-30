@@ -104,6 +104,7 @@ option(CIRCT_MOCKTURTLE_INCLUDE_TESTS
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(circt-mockturtle-opt)
+add_subdirectory(circt-mockturtle-translate)
 
 set(CIRCT_MOCKTURTLE_HAS_PLUGIN 0)
 if(NOT WIN32 AND TARGET circt-opt)

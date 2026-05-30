@@ -3,6 +3,7 @@ add_mlir_library(CIRCTMockturtle
   Emap.cpp
   MockturtlePasses.cpp
   NetworkConversion.cpp
+  TranslateToCpp.cpp
   Bindings/Bind.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -18,6 +19,7 @@ add_mlir_library(CIRCTMockturtle
   MLIRIR
   MLIRPass
   MLIRSupport
+  MLIRTranslateLib
   MLIRTransforms
   libabcesop
   libabcsat

@@ -20,7 +20,7 @@ tool_dirs = [
     config.circt_tools_dir,
     config.llvm_tools_dir,
 ]
-tools = ["circt-mockturtle-opt", "FileCheck"]
+tools = ["circt-mockturtle-opt", "circt-mockturtle-translate", "FileCheck"]
 if config.circt_mockturtle_has_plugin:
   tools.append("circt-opt")
 llvm_config.add_tool_substitutions(tools, tool_dirs)
