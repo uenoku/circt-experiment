@@ -629,11 +629,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 
+set(MOCKTURTLE_GIT_REPOSITORY "https://github.com/lsils/mockturtle.git"
+    CACHE STRING "Git repository used to fetch mockturtle")
+set(MOCKTURTLE_GIT_TAG "9f3a6c94327ee26a7cdcd998a38f5bb2131b956a"
+    CACHE STRING "Git revision used to fetch mockturtle")
+
 FetchContent_Declare(
   mockturtle
-  GIT_REPOSITORY https://github.com/uenoku/mockturtle.git
-  GIT_TAG ee3df62e5a3afbf2c05bc6b9a924b42c6bf685d7
+  GIT_REPOSITORY "${MOCKTURTLE_GIT_REPOSITORY}"
+  GIT_TAG "${MOCKTURTLE_GIT_TAG}"
   GIT_SHALLOW FALSE
+  GIT_PROGRESS TRUE
 )
 
 FetchContent_GetProperties(mockturtle)

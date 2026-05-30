@@ -31,12 +31,33 @@ endif()
 set(CIRCT_MOCKTURTLE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CIRCT_MOCKTURTLE_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-set(MOCKTURTLE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../mockturtle"
-    CACHE PATH "Path to a mockturtle source checkout")
+include(FetchContent)
+set(FETCHCONTENT_QUIET OFF)
 
-if(NOT EXISTS "${MOCKTURTLE_SOURCE_DIR}/include/mockturtle/mockturtle.hpp")
+set(MOCKTURTLE_GIT_REPOSITORY "https://github.com/lsils/mockturtle.git"
+    CACHE STRING "Git repository used to fetch mockturtle")
+set(MOCKTURTLE_GIT_TAG "9f3a6c94327ee26a7cdcd998a38f5bb2131b956a"
+    CACHE STRING "Git revision used to fetch mockturtle")
+
+FetchContent_Declare(
+  mockturtle
+  GIT_REPOSITORY "${MOCKTURTLE_GIT_REPOSITORY}"
+  GIT_TAG "${MOCKTURTLE_GIT_TAG}"
+  GIT_SHALLOW FALSE
+  GIT_PROGRESS TRUE
+)
+
+FetchContent_GetProperties(mockturtle)
+if(NOT mockturtle_POPULATED)
+  FetchContent_Populate(mockturtle)
+endif()
+
+set(MOCKTURTLE_SOURCE_DIR "${mockturtle_SOURCE_DIR}"
+    CACHE PATH "Path to the populated mockturtle source tree" FORCE)
+
+if(NOT EXISTS "${mockturtle_SOURCE_DIR}/include/mockturtle/mockturtle.hpp")
   message(FATAL_ERROR
-    "MOCKTURTLE_SOURCE_DIR must point to a mockturtle source checkout")
+    "mockturtle was not populated correctly from ${MOCKTURTLE_GIT_REPOSITORY}")
 endif()
 
 add_library(mockturtle_headers INTERFACE)

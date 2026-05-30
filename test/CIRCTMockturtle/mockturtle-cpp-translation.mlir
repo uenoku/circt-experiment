@@ -31,10 +31,12 @@
 // CPP-LABEL: mockturtle::xag_network build_xag()
 // CPP: ntk.create_po
 
+// CMAKE: set(MOCKTURTLE_GIT_REPOSITORY "https://github.com/lsils/mockturtle.git"
+// CMAKE: set(MOCKTURTLE_GIT_TAG "9f3a6c94327ee26a7cdcd998a38f5bb2131b956a"
 // CMAKE: FetchContent_Declare(
 // CMAKE: mockturtle
-// CMAKE: GIT_REPOSITORY https://github.com/uenoku/mockturtle.git
-// CMAKE: GIT_TAG ee3df62e5a3afbf2c05bc6b9a924b42c6bf685d7
+// CMAKE: GIT_REPOSITORY "${MOCKTURTLE_GIT_REPOSITORY}"
+// CMAKE: GIT_TAG "${MOCKTURTLE_GIT_TAG}"
 // CMAKE: add_executable(repro repro.cpp)
 // CMAKE: target_link_libraries(repro PRIVATE libabcesop libabcsat)
 
