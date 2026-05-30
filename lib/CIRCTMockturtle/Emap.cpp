@@ -171,10 +171,25 @@ LogicalResult MockturtleEmapPass::runTechnologyMapping(
 
   // Configure emap parameters
   mockturtle::emap_params ps;
-  ps.matching_mode = mockturtle::emap_params::hybrid;
-  ps.area_oriented_mapping = false;
-  ps.map_multioutput = true;
-  ps.relax_required = 0;
+  ps.cut_enumeration_ps.cut_limit = cutLimit;
+  ps.area_oriented_mapping = areaOrientedMapping;
+  ps.map_multioutput = mapMultioutput;
+  if (matchingMode == "boolean")
+    ps.matching_mode = mockturtle::emap_params::boolean;
+  else if (matchingMode == "structural")
+    ps.matching_mode = mockturtle::emap_params::structural;
+  else
+    ps.matching_mode = mockturtle::emap_params::hybrid;
+  ps.required_time = requiredTime;
+  ps.relax_required = relaxRequired;
+  ps.area_flow_rounds = areaFlowRounds;
+  ps.ela_rounds = elaRounds;
+  ps.eswp_rounds = eswpRounds;
+  ps.switching_activity_patterns = switchingActivityPatterns;
+  ps.use_match_alternatives = useMatchAlternatives;
+  ps.remove_dominated_cuts = removeDominatedCuts;
+  ps.remove_overlapping_multicuts = removeOverlappingMulticuts;
+  ps.verbose = verbose;
 
   // Technology mapping function
   auto mapToStandardCells = [&](mockturtle::aig_network &ntk)

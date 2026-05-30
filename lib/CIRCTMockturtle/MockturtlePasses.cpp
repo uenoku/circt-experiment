@@ -26,6 +26,10 @@ namespace mockturtle_plugin {
 #define GEN_PASS_DEF_MOCKTURTLEFUNCTIONALREDUCTION
 #define GEN_PASS_DEF_MOCKTURTLEMIGALGEBRAICREWRITEDEPTH
 #define GEN_PASS_DEF_MOCKTURTLESOPBALANCING
+#define GEN_PASS_DEF_MOCKTURTLEAIGBALANCING
+#define GEN_PASS_DEF_MOCKTURTLEAIGRESUBSTITUTION
+#define GEN_PASS_DEF_MOCKTURTLEMIGRESUBSTITUTION
+#define GEN_PASS_DEF_MOCKTURTLEMIGINVERTERPROPAGATION
 #include "CIRCTMockturtle/CIRCTMockturtlePasses.h.inc"
 } // namespace mockturtle_plugin
 } // namespace circt
@@ -36,6 +40,35 @@ using namespace circt::mockturtle_plugin::mockturtle_integration;
 
 namespace {
 
+ResubstitutionOptions getResubstitutionOptions(
+    unsigned maxPIs, unsigned maxDivisors, unsigned maxInserts,
+    unsigned skipRoots, unsigned skipDivisors, bool progress, bool verbose,
+    bool useDontCares, unsigned windowSize, bool preserveDepth,
+    StringRef patternFilename, StringRef savePatterns, unsigned maxClauses,
+    unsigned conflictLimit, unsigned randomSeed, int odcLevels,
+    unsigned maxTrials, unsigned maxDivisorsK) {
+  ResubstitutionOptions options;
+  options.maxPIs = maxPIs;
+  options.maxDivisors = maxDivisors;
+  options.maxInserts = maxInserts;
+  options.skipFanoutLimitForRoots = skipRoots;
+  options.skipFanoutLimitForDivisors = skipDivisors;
+  options.progress = progress;
+  options.verbose = verbose;
+  options.useDontCares = useDontCares;
+  options.windowSize = windowSize;
+  options.preserveDepth = preserveDepth;
+  options.patternFilename = patternFilename.str();
+  options.savePatterns = savePatterns.str();
+  options.maxClauses = maxClauses;
+  options.conflictLimit = conflictLimit;
+  options.randomSeed = randomSeed;
+  options.odcLevels = odcLevels;
+  options.maxTrials = maxTrials;
+  options.maxDivisorsK = maxDivisorsK;
+  return options;
+}
+
 //===----------------------------------------------------------------------===//
 // Refactor Pass
 //===----------------------------------------------------------------------===//
@@ -45,11 +78,23 @@ namespace {
 /// to optimize circuit structure.
 struct MockturtleRefactorPass
     : public impl::MockturtleRefactorBase<MockturtleRefactorPass> {
+  using impl::MockturtleRefactorBase<
+      MockturtleRefactorPass>::MockturtleRefactorBase;
+
   void runOnOperation() override {
     auto module = getOperation();
     LLVM_DEBUG(llvm::dbgs() << "Running Mockturtle Refactor pass on module: "
                             << module.getModuleName() << "\n");
-    if (failed(runNetworkTransforms(module.getBodyBlock(), runSOPRefactoring)))
+    RefactoringOptions options;
+    options.maxPIs = maxPIs;
+    options.allowZeroGain = allowZeroGain;
+    options.useReconvergenceCut = useReconvergenceCut;
+    options.useDontCares = useDontCares;
+    options.progress = progress;
+    options.verbose = verbose;
+    if (failed(runNetworkTransforms(module.getBodyBlock(), [&](Ntk &ntk) {
+          return runSOPRefactoring(ntk, options);
+        })))
       signalPassFailure();
   }
 };
@@ -64,13 +109,29 @@ struct MockturtleRefactorPass
 struct MockturtleFunctionalReductionPass
     : public impl::MockturtleFunctionalReductionBase<
           MockturtleFunctionalReductionPass> {
+  using impl::MockturtleFunctionalReductionBase<
+      MockturtleFunctionalReductionPass>::MockturtleFunctionalReductionBase;
+
   void runOnOperation() override {
     auto module = getOperation();
     LLVM_DEBUG(llvm::dbgs()
                << "Running Mockturtle Functional Reduction pass on module: "
                << module.getModuleName() << "\n");
-    if (failed(runNetworkTransforms(module.getBodyBlock(),
-                                    runFunctionalReduction)))
+    FunctionalReductionOptions options;
+    options.progress = progress;
+    options.verbose = verbose;
+    options.maxIterations = maxIterations;
+    options.patternFilename = patternFilename;
+    options.savePatterns = savePatterns;
+    options.maxTFINodes = maxTFINodes;
+    options.skipFanoutLimit = skipFanoutLimit;
+    options.conflictLimit = conflictLimit;
+    options.maxClauses = maxClauses;
+    options.numPatterns = numPatterns;
+    options.maxPatterns = maxPatterns;
+    if (failed(runNetworkTransforms(module.getBodyBlock(), [&](Ntk &ntk) {
+          return runFunctionalReduction(ntk, options);
+        })))
       signalPassFailure();
   }
 };
@@ -85,14 +146,24 @@ struct MockturtleFunctionalReductionPass
 struct MockturtleMIGAlgebraicRewriteDepthPass
     : public impl::MockturtleMIGAlgebraicRewriteDepthBase<
           MockturtleMIGAlgebraicRewriteDepthPass> {
+  using impl::MockturtleMIGAlgebraicRewriteDepthBase<
+      MockturtleMIGAlgebraicRewriteDepthPass>::
+      MockturtleMIGAlgebraicRewriteDepthBase;
+
   void runOnOperation() override {
     auto module = getOperation();
     LLVM_DEBUG(llvm::dbgs()
                << "Running Mockturtle MIG Algebraic Rewrite Depth pass on "
                   "module: "
                << module.getModuleName() << "\n");
-    if (failed(runMIGNetworkTransforms(module.getBodyBlock(),
-                                       runMIGAlgebraicRewriteDepth)))
+    MIGAlgebraicRewriteDepthOptions options;
+    options.strategy = strategy;
+    options.overhead = static_cast<float>(overhead);
+    options.allowAreaIncrease = allowAreaIncrease;
+    if (failed(runMIGNetworkTransforms(
+            module.getBodyBlock(), [&](mockturtle::mig_network &ntk) {
+              return runMIGAlgebraicRewriteDepth(ntk, options);
+            })))
       signalPassFailure();
   }
 };
@@ -105,12 +176,127 @@ struct MockturtleMIGAlgebraicRewriteDepthPass
 /// depth and area.
 struct MockturtleSOPBalancingPass
     : public impl::MockturtleSOPBalancingBase<MockturtleSOPBalancingPass> {
+  using impl::MockturtleSOPBalancingBase<
+      MockturtleSOPBalancingPass>::MockturtleSOPBalancingBase;
+
   void runOnOperation() override {
     auto module = getOperation();
     LLVM_DEBUG(llvm::dbgs()
                << "Running Mockturtle SOP Balancing pass on module: "
                << module.getModuleName() << "\n");
-    if (failed(runNetworkTransforms(module.getBodyBlock(), runSOPBalancing)))
+    SOPBalancingOptions options;
+    options.cutSize = cutSize;
+    options.cutLimit = cutLimit;
+    options.areaOrientedMapping = areaOrientedMapping;
+    options.requiredDelay = requiredDelay;
+    options.relaxRequired = relaxRequired;
+    options.recomputeCuts = recomputeCuts;
+    options.areaShareRounds = areaShareRounds;
+    options.areaFlowRounds = areaFlowRounds;
+    options.elaRounds = elaRounds;
+    options.edgeOptimization = edgeOptimization;
+    options.cutExpansion = cutExpansion;
+    options.removeDominatedCuts = removeDominatedCuts;
+    options.costCacheVars = costCacheVars;
+    options.verbose = verbose;
+    if (failed(runNetworkTransforms(module.getBodyBlock(), [&](Ntk &ntk) {
+          return runSOPBalancing(ntk, options);
+        })))
+      signalPassFailure();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// AIG Balancing Pass
+//===----------------------------------------------------------------------===//
+struct MockturtleAIGBalancingPass
+    : public impl::MockturtleAIGBalancingBase<MockturtleAIGBalancingPass> {
+  using impl::MockturtleAIGBalancingBase<
+      MockturtleAIGBalancingPass>::MockturtleAIGBalancingBase;
+
+  void runOnOperation() override {
+    auto module = getOperation();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Running Mockturtle AIG Balancing pass on module: "
+               << module.getModuleName() << "\n");
+    AIGBalancingOptions options;
+    options.minimizeLevels = minimizeLevels;
+    options.fastMode = fastMode;
+    if (failed(runAIGNetworkTransforms(module.getBodyBlock(),
+                                       [&](mockturtle::aig_network &ntk) {
+                                         return runAIGBalancing(ntk, options);
+                                       })))
+      signalPassFailure();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// AIG Resubstitution Pass
+//===----------------------------------------------------------------------===//
+struct MockturtleAIGResubstitutionPass
+    : public impl::MockturtleAIGResubstitutionBase<
+          MockturtleAIGResubstitutionPass> {
+  using impl::MockturtleAIGResubstitutionBase<
+      MockturtleAIGResubstitutionPass>::MockturtleAIGResubstitutionBase;
+
+  void runOnOperation() override {
+    auto module = getOperation();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Running Mockturtle AIG Resubstitution pass on module: "
+               << module.getModuleName() << "\n");
+    auto options = getResubstitutionOptions(
+        maxPIs, maxDivisors, maxInserts, skipFanoutLimitForRoots,
+        skipFanoutLimitForDivisors, progress, verbose, useDontCares, windowSize,
+        preserveDepth, patternFilename, savePatterns, maxClauses, conflictLimit,
+        randomSeed, odcLevels, maxTrials, maxDivisorsK);
+    if (failed(runAIGNetworkTransforms(
+            module.getBodyBlock(), [&](mockturtle::aig_network &ntk) {
+              return runAIGResubstitution(ntk, options);
+            })))
+      signalPassFailure();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// MIG Resubstitution Pass
+//===----------------------------------------------------------------------===//
+struct MockturtleMIGResubstitutionPass
+    : public impl::MockturtleMIGResubstitutionBase<
+          MockturtleMIGResubstitutionPass> {
+  using impl::MockturtleMIGResubstitutionBase<
+      MockturtleMIGResubstitutionPass>::MockturtleMIGResubstitutionBase;
+
+  void runOnOperation() override {
+    auto module = getOperation();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Running Mockturtle MIG Resubstitution pass on module: "
+               << module.getModuleName() << "\n");
+    auto options = getResubstitutionOptions(
+        maxPIs, maxDivisors, maxInserts, skipFanoutLimitForRoots,
+        skipFanoutLimitForDivisors, progress, verbose, useDontCares, windowSize,
+        preserveDepth, patternFilename, savePatterns, maxClauses, conflictLimit,
+        randomSeed, odcLevels, maxTrials, maxDivisorsK);
+    if (failed(runMIGNetworkTransforms(
+            module.getBodyBlock(), [&](mockturtle::mig_network &ntk) {
+              return runMIGResubstitution(ntk, options);
+            })))
+      signalPassFailure();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// MIG Inverter Propagation Pass
+//===----------------------------------------------------------------------===//
+struct MockturtleMIGInverterPropagationPass
+    : public impl::MockturtleMIGInverterPropagationBase<
+          MockturtleMIGInverterPropagationPass> {
+  void runOnOperation() override {
+    auto module = getOperation();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Running Mockturtle MIG Inverter Propagation pass on module: "
+               << module.getModuleName() << "\n");
+    if (failed(runMIGNetworkTransforms(module.getBodyBlock(),
+                                       runMIGInverterPropagation)))
       signalPassFailure();
   }
 };
