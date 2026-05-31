@@ -14,6 +14,7 @@ llvm_update_compile_flags(circt-mockturtle-opt)
 target_link_libraries(circt-mockturtle-opt
   PRIVATE
   CIRCTMockturtle
+  CIRCTComb
   CIRCTHW
   CIRCTSynth
   MLIRIR

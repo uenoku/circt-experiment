@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CIRCTMockturtle/CIRCTMockturtlePasses.h"
+#include "circt/Dialect/Comb/CombDialect.h"
 #include "circt/Dialect/HW/HWDialect.h"
 #include "circt/Dialect/Synth/SynthDialect.h"
 #include "circt/Support/Version.h"
@@ -19,6 +20,7 @@ int main(int argc, char **argv) {
   llvm::setBugReportMsg(circt::circtBugReportMsg);
 
   mlir::DialectRegistry registry;
+  registry.insert<circt::comb::CombDialect>();
   registry.insert<circt::hw::HWDialect>();
   registry.insert<circt::synth::SynthDialect>();
 
