@@ -132,3 +132,8 @@ add_subdirectory(plugins)
 if(CIRCT_EXPERIMENT_INCLUDE_TESTS)
   add_subdirectory(test)
 endif()
+
+# Import circt-synth-formal-exp as a subproject.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/circt-synth-formal-exp/CMakeLists.txt")
+  add_subdirectory(circt-synth-formal-exp)
+endif()
