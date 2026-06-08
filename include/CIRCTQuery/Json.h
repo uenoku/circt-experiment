@@ -18,6 +18,9 @@ llvm::json::Value toJson(const DesignRecord &design);
 llvm::json::Value toJson(const DesignObjectInfo &object);
 llvm::json::Value toJson(const NameMatch &match);
 llvm::json::Value toJson(const NameSearchResult &result);
+llvm::json::Value toJson(const ValueRef &value);
+llvm::json::Value toJson(const SignalTraceStop &stop);
+llvm::json::Value toJson(const SignalTraceResult &result);
 
 bool fromJSON(const llvm::json::Value &value, MatchMode &mode,
               llvm::json::Path path);

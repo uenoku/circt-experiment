@@ -206,6 +206,307 @@ void collectHierarchyObjects(
   active->erase(recursionKey);
 }
 
+std::string getObjectParentPath(const DesignObjectInfo &object) {
+  std::string suffix = "/" + object.localName;
+  if (object.path.size() >= suffix.size() &&
+      object.path.compare(object.path.size() - suffix.size(), suffix.size(),
+                          suffix) == 0) {
+    return object.path.substr(0, object.path.size() - suffix.size());
+  }
+  return object.moduleName;
+}
+
+const PortInfo *findPort(const ModuleInfo &module, const std::string &name) {
+  auto it =
+      std::find_if(module.ports.begin(), module.ports.end(),
+                   [&](const PortInfo &port) { return port.name == name; });
+  return it == module.ports.end() ? nullptr : &*it;
+}
+
+const RegisterInfo *findRegisterForValue(const ModuleInfo &module,
+                                         const std::string &valueName) {
+  auto it = std::find_if(module.registers.begin(), module.registers.end(),
+                         [&](const RegisterInfo &reg) {
+                           return reg.name == valueName ||
+                                  reg.outputValueName == valueName;
+                         });
+  return it == module.registers.end() ? nullptr : &*it;
+}
+
+const MemoryPortInfo *findMemoryPortForValue(const ModuleInfo &module,
+                                             const std::string &valueName) {
+  auto it = std::find_if(module.memoryPorts.begin(), module.memoryPorts.end(),
+                         [&](const MemoryPortInfo &port) {
+                           return port.name == valueName ||
+                                  port.outputValueName == valueName;
+                         });
+  return it == module.memoryPorts.end() ? nullptr : &*it;
+}
+
+const InstanceInfo *findInstance(const ModuleInfo &module,
+                                 const std::string &name) {
+  auto it =
+      std::find_if(module.instances.begin(), module.instances.end(),
+                   [&](const InstanceInfo &inst) { return inst.name == name; });
+  return it == module.instances.end() ? nullptr : &*it;
+}
+
+DesignObjectInfo makePortObject(const DesignRecord &record,
+                                const std::string &pathPrefix,
+                                const std::string &instancePath,
+                                const ModuleInfo &module,
+                                const PortInfo &port) {
+  DesignObjectInfo object;
+  object.path = joinPath(pathPrefix, port.name);
+  object.kind = ObjectKind::Port;
+  object.designId = record.id;
+  object.moduleName = module.name;
+  object.localName = port.name;
+  object.instancePath = instancePath;
+  object.type = port.type;
+  object.direction = port.direction;
+  return object;
+}
+
+DesignObjectInfo makeRegisterObject(const DesignRecord &record,
+                                    const std::string &pathPrefix,
+                                    const std::string &instancePath,
+                                    const ModuleInfo &module,
+                                    const RegisterInfo &reg) {
+  DesignObjectInfo object;
+  object.path = joinPath(pathPrefix, reg.name);
+  object.kind = ObjectKind::Register;
+  object.designId = record.id;
+  object.moduleName = module.name;
+  object.localName = reg.name;
+  object.instancePath = instancePath;
+  object.type = reg.type;
+  return object;
+}
+
+DesignObjectInfo makeMemoryPortObject(const DesignRecord &record,
+                                      const std::string &pathPrefix,
+                                      const std::string &instancePath,
+                                      const ModuleInfo &module,
+                                      const MemoryPortInfo &port) {
+  DesignObjectInfo object;
+  object.path = joinPath(pathPrefix, port.name);
+  object.kind = ObjectKind::MemoryPort;
+  object.designId = record.id;
+  object.moduleName = module.name;
+  object.localName = port.name;
+  object.instancePath = instancePath;
+  object.type = port.type;
+  return object;
+}
+
+ValueRef makeValueRef(const DesignRecord &record, const ModuleInfo &module,
+                      const std::string &instancePath, const ValueInfo &value) {
+  ValueRef ref;
+  ref.designId = record.id;
+  ref.moduleName = module.name;
+  ref.instancePath = instancePath;
+  ref.valueName = value.name;
+  ref.type = value.type;
+  ref.definingOp = value.definingOp;
+  return ref;
+}
+
+ValueRef makeUnresolvedValueRef(const DesignRecord &record,
+                                const std::string &moduleName,
+                                const std::string &instancePath,
+                                const std::string &valueName) {
+  ValueRef ref;
+  ref.designId = record.id;
+  ref.moduleName = moduleName;
+  ref.instancePath = instancePath;
+  ref.valueName = valueName;
+  return ref;
+}
+
+SignalTraceStop makeObjectStop(SignalTraceStopReason reason,
+                               DesignObjectInfo object) {
+  SignalTraceStop stop;
+  stop.reason = reason;
+  stop.object = std::move(object);
+  return stop;
+}
+
+SignalTraceStop makeValueStop(SignalTraceStopReason reason, ValueRef value) {
+  SignalTraceStop stop;
+  stop.reason = reason;
+  stop.value = std::move(value);
+  return stop;
+}
+
+std::optional<DesignObjectInfo>
+findObjectForValue(const DesignRecord &record, const DesignModel &model,
+                   const ModuleInfo &module, const std::string &pathPrefix,
+                   const std::string &instancePath,
+                   const std::string &valueName) {
+  if (const PortInfo *port = findPort(module, valueName))
+    return makePortObject(record, pathPrefix, instancePath, module, *port);
+  if (const RegisterInfo *reg = findRegisterForValue(module, valueName))
+    return makeRegisterObject(record, pathPrefix, instancePath, module, *reg);
+  if (const MemoryPortInfo *memoryPort =
+          findMemoryPortForValue(module, valueName))
+    return makeMemoryPortObject(record, pathPrefix, instancePath, module,
+                                *memoryPort);
+
+  size_t dot = valueName.find('.');
+  if (dot == std::string::npos)
+    return std::nullopt;
+
+  std::string instanceName = valueName.substr(0, dot);
+  std::string portName = valueName.substr(dot + 1);
+  const InstanceInfo *instance = findInstance(module, instanceName);
+  if (!instance)
+    return std::nullopt;
+  auto targetIt = model.modules.find(instance->targetModule);
+  if (targetIt == model.modules.end())
+    return std::nullopt;
+  if (const PortInfo *port = findPort(targetIt->second, portName)) {
+    return makePortObject(record, joinPath(pathPrefix, instanceName),
+                          joinPath(instancePath, instanceName),
+                          targetIt->second, *port);
+  }
+  return std::nullopt;
+}
+
+bool isTransparentValue(const ValueInfo &value) {
+  return value.kind == ValueKind::OutputPort || value.kind == ValueKind::Wire ||
+         value.definingOp == "module output" || value.definingOp == "hw.wire";
+}
+
+void appendUniqueStop(std::vector<SignalTraceStop> *stops,
+                      SignalTraceStop stop) {
+  auto stopKey = [](const SignalTraceStop &value) {
+    if (value.object)
+      return std::string("o:") + value.object->path + ":" +
+             toString(value.reason);
+    if (value.value)
+      return std::string("v:") + value.value->moduleName + ":" +
+             value.value->instancePath + ":" + value.value->valueName + ":" +
+             toString(value.reason);
+    return std::string("u:") + toString(value.reason);
+  };
+  std::string key = stopKey(stop);
+  auto it = std::find_if(stops->begin(), stops->end(),
+                         [&](const SignalTraceStop &existing) {
+                           return stopKey(existing) == key;
+                         });
+  if (it == stops->end())
+    stops->push_back(std::move(stop));
+}
+
+void traceValueFanin(const DesignRecord &record, const DesignModel &model,
+                     const ModuleInfo &module, const std::string &pathPrefix,
+                     const std::string &instancePath,
+                     const std::string &valueName,
+                     std::set<std::string> *active,
+                     std::vector<SignalTraceStop> *stops) {
+  std::string key = module.name + "|" + instancePath + "|" + valueName;
+  if (!active->insert(key).second) {
+    appendUniqueStop(
+        stops, makeValueStop(SignalTraceStopReason::Cycle,
+                             makeUnresolvedValueRef(record, module.name,
+                                                    instancePath, valueName)));
+    return;
+  }
+
+  auto valueIt = module.values.find(valueName);
+  if (valueIt == module.values.end()) {
+    appendUniqueStop(
+        stops, makeValueStop(SignalTraceStopReason::Unresolved,
+                             makeUnresolvedValueRef(record, module.name,
+                                                    instancePath, valueName)));
+    active->erase(key);
+    return;
+  }
+
+  const ValueInfo &value = valueIt->second;
+  if (value.kind == ValueKind::InputPort) {
+    if (auto object = findObjectForValue(record, model, module, pathPrefix,
+                                         instancePath, valueName)) {
+      appendUniqueStop(stops,
+                       makeObjectStop(SignalTraceStopReason::Port, *object));
+    } else {
+      appendUniqueStop(stops, makeValueStop(SignalTraceStopReason::Unresolved,
+                                            makeValueRef(record, module,
+                                                         instancePath, value)));
+    }
+    active->erase(key);
+    return;
+  }
+
+  if (value.kind == ValueKind::Register) {
+    if (auto object = findObjectForValue(record, model, module, pathPrefix,
+                                         instancePath, valueName)) {
+      appendUniqueStop(
+          stops, makeObjectStop(SignalTraceStopReason::Register, *object));
+    } else {
+      appendUniqueStop(stops, makeValueStop(SignalTraceStopReason::Register,
+                                            makeValueRef(record, module,
+                                                         instancePath, value)));
+    }
+    active->erase(key);
+    return;
+  }
+
+  if (value.kind == ValueKind::InstanceResult) {
+    if (auto object = findObjectForValue(record, model, module, pathPrefix,
+                                         instancePath, valueName)) {
+      appendUniqueStop(
+          stops,
+          makeObjectStop(SignalTraceStopReason::InstanceBoundary, *object));
+    } else {
+      appendUniqueStop(
+          stops,
+          makeValueStop(SignalTraceStopReason::InstanceBoundary,
+                        makeValueRef(record, module, instancePath, value)));
+    }
+    active->erase(key);
+    return;
+  }
+
+  if (findMemoryPortForValue(module, valueName)) {
+    if (auto object = findObjectForValue(record, model, module, pathPrefix,
+                                         instancePath, valueName)) {
+      appendUniqueStop(
+          stops, makeObjectStop(SignalTraceStopReason::MemoryPort, *object));
+    } else {
+      appendUniqueStop(stops, makeValueStop(SignalTraceStopReason::MemoryPort,
+                                            makeValueRef(record, module,
+                                                         instancePath, value)));
+    }
+    active->erase(key);
+    return;
+  }
+
+  if (!isTransparentValue(value)) {
+    appendUniqueStop(
+        stops,
+        makeValueStop(SignalTraceStopReason::CombinationalLogic,
+                      makeValueRef(record, module, instancePath, value)));
+    active->erase(key);
+    return;
+  }
+
+  if (value.drivers.empty()) {
+    appendUniqueStop(stops, makeValueStop(SignalTraceStopReason::Unresolved,
+                                          makeValueRef(record, module,
+                                                       instancePath, value)));
+    active->erase(key);
+    return;
+  }
+
+  for (const auto &driver : value.drivers)
+    traceValueFanin(record, model, module, pathPrefix, instancePath, driver,
+                    active, stops);
+
+  active->erase(key);
+}
+
 } // namespace
 
 const QueryService::LoadedDesign *
@@ -440,6 +741,87 @@ Result<NameSearchResult> QueryService::searchNames(const std::string &designId,
     result.matches.resize(limit);
 
   return Result<NameSearchResult>::success(std::move(result));
+}
+
+Result<SignalTraceResult> QueryService::traceSignal(const std::string &designId,
+                                                    const std::string &toQuery,
+                                                    MatchMode matchMode) const {
+  const LoadedDesign *loaded = findDesign(designId);
+  if (!loaded)
+    return Result<SignalTraceResult>::failure("unknown design '" + designId +
+                                              "'");
+  if (loaded->record.selectedTop.empty()) {
+    return Result<SignalTraceResult>::failure(
+        "signal trace requires a selected top module; rerun with --top or call "
+        "circt_design_top_set first");
+  }
+
+  auto objects = listObjects(designId, toQuery, matchMode);
+  if (!objects.ok)
+    return Result<SignalTraceResult>::failure(objects.message);
+  if (objects.value.empty())
+    return Result<SignalTraceResult>::failure("signal trace query '" + toQuery +
+                                              "' matched no objects");
+  if (objects.value.size() != 1) {
+    return Result<SignalTraceResult>::failure(
+        "signal trace query '" + toQuery +
+        "' must resolve to exactly one object, matched " +
+        std::to_string(objects.value.size()));
+  }
+
+  SignalTraceResult result;
+  result.designId = designId;
+  result.topModuleName = loaded->record.selectedTop;
+  result.toQuery = toQuery;
+  result.matchMode = matchMode;
+  result.targetObject = std::move(objects.value.front());
+
+  auto moduleIt = loaded->model.modules.find(result.targetObject.moduleName);
+  if (moduleIt == loaded->model.modules.end())
+    return Result<SignalTraceResult>::failure(
+        "target object refers to unknown module '" +
+        result.targetObject.moduleName + "'");
+
+  const ModuleInfo &module = moduleIt->second;
+  std::string pathPrefix = getObjectParentPath(result.targetObject);
+  std::set<std::string> active;
+
+  switch (result.targetObject.kind) {
+  case ObjectKind::Port:
+    if (result.targetObject.direction == PortDirection::Input) {
+      appendUniqueStop(
+          &result.stops,
+          makeObjectStop(SignalTraceStopReason::Port, result.targetObject));
+      break;
+    }
+    traceValueFanin(loaded->record, loaded->model, module, pathPrefix,
+                    result.targetObject.instancePath,
+                    result.targetObject.localName, &active, &result.stops);
+    break;
+  case ObjectKind::Register:
+    appendUniqueStop(
+        &result.stops,
+        makeObjectStop(SignalTraceStopReason::Register, result.targetObject));
+    result.diagnostics.push_back(
+        "register objects are treated as sequential trace boundaries");
+    break;
+  case ObjectKind::MemoryPort:
+    appendUniqueStop(
+        &result.stops,
+        makeObjectStop(SignalTraceStopReason::MemoryPort, result.targetObject));
+    result.diagnostics.push_back(
+        "memory port objects are treated as trace boundaries");
+    break;
+  case ObjectKind::Instance:
+    appendUniqueStop(&result.stops,
+                     makeObjectStop(SignalTraceStopReason::InstanceBoundary,
+                                    result.targetObject));
+    result.diagnostics.push_back(
+        "instance objects are treated as hierarchy trace boundaries");
+    break;
+  }
+
+  return Result<SignalTraceResult>::success(std::move(result));
 }
 
 } // namespace circt_query

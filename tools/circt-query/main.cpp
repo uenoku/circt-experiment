@@ -23,7 +23,8 @@ void printUsageAndExit() {
                << "  ports <module>\n"
                << "  instances <module>\n"
                << "  objects [query]\n"
-               << "  search <query>\n";
+               << "  search <query>\n"
+               << "  trace <query>\n";
   std::exit(2);
 }
 
@@ -162,6 +163,21 @@ int main(int argc, char **argv) {
       return 2;
     }
     output = llvm::json::Object{{"result", circt_query::toJson(result.value)}};
+  } else if (verb == "trace") {
+    if (command.size() < 2)
+      printUsageAndExit();
+    auto parsedMode = circt_query::parseMatchMode(matchMode);
+    if (!parsedMode) {
+      llvm::errs() << "error: invalid --match-mode '" << matchMode << "'\n";
+      return 2;
+    }
+    auto result = service.traceSignal(designId, command[1], *parsedMode);
+    if (!result.ok) {
+      llvm::errs() << "error: " << result.message << "\n";
+      return 2;
+    }
+    output =
+        llvm::json::Object{{"signal_trace", circt_query::toJson(result.value)}};
   } else {
     printUsageAndExit();
   }

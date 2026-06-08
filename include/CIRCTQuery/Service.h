@@ -45,6 +45,10 @@ public:
                                        MatchMode matchMode = MatchMode::Fuzzy,
                                        size_t limit = 20) const;
 
+  Result<SignalTraceResult>
+  traceSignal(const std::string &designId, const std::string &toQuery,
+              MatchMode matchMode = MatchMode::Wildcard) const;
+
 private:
   struct LoadedDesign {
     DesignRecord record;

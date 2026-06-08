@@ -58,6 +58,12 @@ struct NameSearchArgs {
   std::optional<int64_t> limit;
 };
 
+struct SignalTraceArgs {
+  std::string designId;
+  std::string toQuery;
+  std::optional<MatchMode> matchMode;
+};
+
 bool fromJSON(const Value &value, LoadDesignsArgs &args, Path path) {
   ObjectMapper mapper(value, path);
   return mapper && mapper.map("paths", args.paths);
@@ -94,6 +100,13 @@ bool fromJSON(const Value &value, NameSearchArgs &args, Path path) {
          mapper.map("query", args.query) &&
          mapper.map("match_mode", args.matchMode) &&
          mapper.map("limit", args.limit);
+}
+
+bool fromJSON(const Value &value, SignalTraceArgs &args, Path path) {
+  ObjectMapper mapper(value, path);
+  return mapper && mapper.map("design_id", args.designId) &&
+         mapper.map("to_query", args.toQuery) &&
+         mapper.map("match_mode", args.matchMode);
 }
 
 template <typename T>
@@ -259,6 +272,13 @@ std::vector<ToolDefinition> McpToolDispatcher::listTools() const {
                {"match_mode", matchModeSchema()},
                {"limit", Object{{"type", "integer"}, {"minimum", 0}}}},
               {"design_id", "query"})},
+      {"circt_signal_trace_get",
+       "Trace one target signal backward through transparent structural "
+       "connectivity and stop at logic or named boundaries",
+       schema({{"design_id", stringSchema()},
+               {"to_query", stringSchema()},
+               {"match_mode", matchModeSchema()}},
+              {"design_id", "to_query"})},
   };
 }
 
@@ -364,6 +384,19 @@ ToolCallResult McpToolDispatcher::callTool(const std::string &name,
     if (!result.ok)
       return makeError(result.message);
     return makeSuccess("matches", Object{{"result", toJson(result.value)}});
+  }
+
+  if (name == "circt_signal_trace_get") {
+    auto args = decodeArgs<SignalTraceArgs>(arguments, &error);
+    if (!args)
+      return makeError(error);
+    auto result =
+        service->traceSignal(args->designId, args->toQuery,
+                             args->matchMode.value_or(MatchMode::Wildcard));
+    if (!result.ok)
+      return makeError(result.message);
+    return makeSuccess("signal trace",
+                       Object{{"signal_trace", toJson(result.value)}});
   }
 
   return makeError("unknown tool '" + name + "'");

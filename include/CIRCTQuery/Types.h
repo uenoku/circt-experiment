@@ -56,6 +56,15 @@ enum class ValueKind {
   OperationResult,
 };
 enum class IrStatus { Unknown, Core, Synthesized, PostVerilogEmission };
+enum class SignalTraceStopReason {
+  Port,
+  Register,
+  MemoryPort,
+  InstanceBoundary,
+  CombinationalLogic,
+  Unresolved,
+  Cycle,
+};
 
 std::string toString(PortDirection direction);
 std::string toString(MatchMode mode);
@@ -63,6 +72,7 @@ std::string toString(ObjectKind kind);
 std::string toString(EntityKind kind);
 std::string toString(ValueKind kind);
 std::string toString(IrStatus status);
+std::string toString(SignalTraceStopReason reason);
 
 std::optional<MatchMode> parseMatchMode(const std::string &text);
 std::optional<ObjectKind> parseObjectKind(const std::string &text);
@@ -171,6 +181,31 @@ struct NameSearchResult {
   std::string query;
   MatchMode matchMode = MatchMode::Fuzzy;
   std::vector<NameMatch> matches;
+};
+
+struct ValueRef {
+  std::string designId;
+  std::string moduleName;
+  std::string instancePath;
+  std::string valueName;
+  std::string type;
+  std::string definingOp;
+};
+
+struct SignalTraceStop {
+  SignalTraceStopReason reason = SignalTraceStopReason::Unresolved;
+  std::optional<DesignObjectInfo> object;
+  std::optional<ValueRef> value;
+};
+
+struct SignalTraceResult {
+  std::string designId;
+  std::string topModuleName;
+  std::string toQuery;
+  MatchMode matchMode = MatchMode::Wildcard;
+  DesignObjectInfo targetObject;
+  std::vector<SignalTraceStop> stops;
+  std::vector<std::string> diagnostics;
 };
 
 } // namespace circt_query

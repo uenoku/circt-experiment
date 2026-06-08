@@ -103,6 +103,26 @@ std::string toString(IrStatus status) {
   return "unknown";
 }
 
+std::string toString(SignalTraceStopReason reason) {
+  switch (reason) {
+  case SignalTraceStopReason::Port:
+    return "port";
+  case SignalTraceStopReason::Register:
+    return "register";
+  case SignalTraceStopReason::MemoryPort:
+    return "memory_port";
+  case SignalTraceStopReason::InstanceBoundary:
+    return "instance_boundary";
+  case SignalTraceStopReason::CombinationalLogic:
+    return "combinational_logic";
+  case SignalTraceStopReason::Unresolved:
+    return "unresolved";
+  case SignalTraceStopReason::Cycle:
+    return "cycle";
+  }
+  return "unknown";
+}
+
 std::optional<MatchMode> parseMatchMode(const std::string &text) {
   std::string normalized = normalizeEnumText(text);
   if (normalized == "wildcard")

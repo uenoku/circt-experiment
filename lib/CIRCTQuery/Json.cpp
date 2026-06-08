@@ -164,6 +164,46 @@ llvm::json::Value toJson(const NameSearchResult &result) {
                             {"matches", std::move(matches)}};
 }
 
+llvm::json::Value toJson(const ValueRef &value) {
+  llvm::json::Object object{{"design_id", value.designId},
+                            {"module", value.moduleName},
+                            {"value_name", value.valueName}};
+  if (!value.instancePath.empty())
+    object["instance_path"] = value.instancePath;
+  if (!value.type.empty())
+    object["type"] = value.type;
+  if (!value.definingOp.empty())
+    object["defining_op"] = value.definingOp;
+  return object;
+}
+
+llvm::json::Value toJson(const SignalTraceStop &stop) {
+  llvm::json::Object object{{"reason", toString(stop.reason)}};
+  if (stop.object)
+    object["object"] = toJson(*stop.object);
+  if (stop.value)
+    object["value"] = toJson(*stop.value);
+  return object;
+}
+
+llvm::json::Value toJson(const SignalTraceResult &result) {
+  llvm::json::Array stops;
+  for (const auto &stop : result.stops)
+    stops.push_back(toJson(stop));
+  llvm::json::Array diagnostics;
+  for (const auto &diagnostic : result.diagnostics)
+    diagnostics.push_back(diagnostic);
+  llvm::json::Object object{{"design_id", result.designId},
+                            {"top_module_name", result.topModuleName},
+                            {"to_query", result.toQuery},
+                            {"match_mode", toString(result.matchMode)},
+                            {"target_object", toJson(result.targetObject)},
+                            {"stops", std::move(stops)}};
+  if (!diagnostics.empty())
+    object["diagnostics"] = std::move(diagnostics);
+  return object;
+}
+
 bool fromJSON(const llvm::json::Value &value, MatchMode &mode,
               llvm::json::Path path) {
   if (auto text = value.getAsString()) {
