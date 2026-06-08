@@ -8,6 +8,7 @@ configure_lit_site_cfg(
 set(CIRCT_EXPERIMENT_TEST_DEPENDS
   circt-mockturtle-opt
   circt-mockturtle-translate
+  circt-fraig-lec
 )
 
 if(CIRCT_EXPERIMENT_HAS_PLUGIN)
@@ -21,3 +22,8 @@ add_lit_testsuite(check-circt-experiment
   ${CIRCT_EXPERIMENT_TEST_DEPENDS}
 )
 set_target_properties(check-circt-experiment PROPERTIES FOLDER "Tests")
+
+# Run formal tool tests as part of the main experiment test suite.
+if(TARGET check-circt-fraig-lec)
+  add_dependencies(check-circt-experiment check-circt-fraig-lec)
+endif()
